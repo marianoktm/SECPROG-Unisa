@@ -3,6 +3,8 @@ Solutions for Nebula and Protostar CTFs for the Secure Programming course of the
 
 This repository aims to provide straightforward and simple explanations on how to solve Nebula and Protostar CTFs shown during the Secure Programming Course of the Master's Degree in Cybersecurity of Unisa.
 
+Beware: I'm really informal here, and I'm not interested in sounding professional. If you're sensible to slurs, slangs and shit, just go away and study somewhere else. If you are an HR, this is not my CV. Take this file as a "friendly yapping about CTFs".
+
 In this course, these CTFs were solved:
 - nebula-level00;
 - nebula-level01;
@@ -11,8 +13,6 @@ In this course, these CTFs were solved:
 - nebula-level07;
 - nebula-level10;
 - nebula-level13;
-
-
 - protostar-stack0;
 - protostar-stack1;
 - protostar-stack2;
@@ -115,7 +115,7 @@ We also find an interesting bit into the NOTES section:
 
 "Do  not  use  system()  from  a  program  with set-user-ID or set-group-ID privileges, because strange values for some environment variables might be used to subvert  system integrity."
 
-So what environment variable can we use to do freaky stuff?
+So what environment variable can we use to get freaky?
 
 Actually, when you use a command without giving the full path of the executable, the `PATH` variable is used to search for such command in these paths.
 
@@ -260,13 +260,13 @@ level04@nebula:/home/flag04$ ./flag04 token
 You may not access 'token'
 ```
 
-We get an error. Analyzing the source code, we can't read the file because its name contains "token". We can't even copy it because we don't have the perms to do so.
+We got an error. Analyzing the source code, we can't read the file because its name contains "token". We can't even copy it because we don't have the perms to do so.
 
 Let's read the manual of `open`:
 
 "Given  a  pathname  for a file, open() returns a file descriptor".
 
-No shyt, Sherlock. But actually that's a fair point, because if we read further:
+No shit Sherlock. But actually that's a fair point, because if we read further:
 
 "**O_NOFOLLOW** If pathname is a symbolic link, then the open fails".
 
