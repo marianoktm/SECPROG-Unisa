@@ -979,7 +979,7 @@ Dump of assembler code for function main:
 End of assembler dump.
 ```
 
-- Before the main the push address to `__libc_start_main` is pushed on the stack; 
+- Before the main the return address to `__libc_start_main` is pushed on the stack; 
 - Then the main is called;
 - The old base frame pointer (`ebp`) is pushed on the stack;
 - The `ebp` is updated at the current stack top (`esp`);
