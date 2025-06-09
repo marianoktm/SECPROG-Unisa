@@ -22,6 +22,17 @@ In this course, these CTFs were solved:
 
 ## NEBULA
 
+### Before we start: An intro to SETUID
+Usually on linux three kinds of permissions are available: `read`, `write` and `execute`. These permissions can be assigned to the owner, the group and to other users, usually making a tiplet of permissions.
+
+Actually another kind of permission setting is provided: `setuid` (and `setgid`), that enables the program to be temporarly executed with the permission of the owner.
+
+For instance, if a program with owner `root` has the `setuid` permission, an unprivileged user can (temporarily) run such program with the permissions of `root`.
+
+If these `setuid` programs aren't carefully designed, they can pose a security risk.
+
+Nebula's CTFs are almost entirely based on this mechanism. We find a `setuid` executable, we analyze it to find programming mistakes and we leverage these weaknesses to execute an arbitrary program (in this case the `/bin/getflag` executable) with higher privileges.
+
 ### Level 00
 
 This level requires you to find a Set User ID program that will run as the “flag00” account. You could also find this by carefully looking in top level directories in / for suspicious looking directories.
