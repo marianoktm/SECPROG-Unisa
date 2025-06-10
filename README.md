@@ -459,6 +459,16 @@ You have successfully executed getflag on a target account
 
 Success.
 
+#### Mitigations
+
+The weaknesses are:
+1. CWE-250 Execution with Unnecessary Privileges: The webserver executes as `flag07` when it's not needed.
+3. CWE-77 Improper Neutralization of Special Elements used in a Command ('Command Injection'): It is possible to append special characters to a command.
+
+To mitigate the attack vectors on this executable, we could:
+1. Edit `thttpd.conf` such as the server root is `/home/level07` and the executing user is `level07`.
+3. Use a blacklist, actually in this case a regex to check if the input is an IP.
+
 ### Level 10
 
 The setuid binary at /home/flag10/flag10 binary will upload any file given, as long as it meets the requirements of the access() system call.
@@ -741,6 +751,7 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+
 #### Mitigations
 
 The weaknesses are:
