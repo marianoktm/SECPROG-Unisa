@@ -1411,3 +1411,13 @@ root
 ```
 
 Hell yeah!
+
+### Protostar Mitigations
+
+Some CTFs have the improper character neutralization or similar, but the main problem here is the use of `gets()` and the SETUID, so:
+1. CWE-276 Incorrect Default Permissions: The executable has `setuid` when it's not needed.
+2. CWE-121 Stack-based Buffer Overflow: `gets()` allows an out-of-bound write.
+
+How to mitigate:
+1. Remove the `setuid`.
+2. Use `fgets()` (yes it is that easy).
