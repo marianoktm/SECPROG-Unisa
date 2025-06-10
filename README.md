@@ -124,7 +124,7 @@ Let's have a glance at the `man system` entry:.
 
 Reading further, the NOTES sections reveals something pretty interesting:
 
-"Do  not  use  system()  from  a  program  with set-user-ID or set-group-ID privileges, because strange values for some environment variables might be used to subvert  system integrity."
+"Do  not  use  system()  from  a  program  with set-user-ID or set-group-ID privileges, because strange values for some environment variables might be used to subvert system integrity."
 
 So what environment variable can we use to get freaky?
 
@@ -145,6 +145,18 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+
+#### Mitigations
+
+The weaknesses are:
+1. CWE-276 Incorrect Default Permissions: The executable has `setuid` when it's not needed.
+2. CWE-272 Least Privilege Violation: The shell used in Nebula does not lower the privileges.
+3. CWE-426 Untrusted Search Path: A critical resource (i.e. `echo`) is searched through an untrusted value (i.e. `PATH`).
+
+To mitigate the attack vectors on this executable, we could:
+1. Remove the SETUID;
+2. Install a shell that does lower the privileges;
+3. Use `putenv()` before the call to system to modify the path to a safe value.
 
 ### Level 02
 
@@ -207,6 +219,18 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+
+#### Mitigations
+
+The weaknesses are:
+1. CWE-276 Incorrect Default Permissions: The executable has `setuid` when it's not needed.
+2. CWE-272 Least Privilege Violation: The shell used in Nebula does not lower the privileges.
+3. CWE-77 Improper Neutralization of Special Elements used in a Command ('Command Injection'): It is possible to append special characters to a command.
+
+To mitigate the attack vectors on this executable, we could:
+1. Remove the SETUID;
+2. Install a shell that does lower the privileges;
+3. Use a blacklist or use `getlogin()` to get the username.
 
 ### Level 04
 This level requires you to read the token file, but the code restricts the files that can be read. Find a way to bypass it :)
@@ -693,6 +717,15 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+#### Mitigations
+
+The weaknesses are:
+1. CWE-426 Untrusted Search Path: A critical resource (i.e. `getuid()`) is searched through an untrusted value (i.e. `LD_PRELOAD`).
+2. CWE-90 Authentication Bypass by Spoofing: The UID is known and can be spoofed easily.
+
+To mitigate the attack vectors on this executable, we could:
+1. Do nothing. `LD_PRELOAD` works before the executable is launched.
+2. The authentication is dumb. The value is known and it's easily spoofable. A better authentication mechanism should be used.
 
 ## Protostar
 
