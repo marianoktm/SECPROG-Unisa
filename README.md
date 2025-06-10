@@ -328,6 +328,18 @@ You have successfully executed getflag on a target account
 
 Success.
 
+#### Mitigations
+
+The weaknesses are:
+1. CWE-276 Incorrect Default Permissions: The executable has `setuid` when it's not needed.
+2. CWE-272 Least Privilege Violation: The shell used in Nebula does not lower the privileges.
+3. CWE-61 Unix Symbolic link (Symlink) Following: the `open()` "follows" a symlink with different permissions than the file it refers to.
+
+To mitigate the attack vectors on this executable, we could:
+1. Remove the SETUID;
+2. Install a shell that does lower the privileges;
+3. Add `O_NONFOLLOW` to the `open()`.
+
 ### Level 07
 
 The flag07 user was writing their very first perl program that allowed them to ping hosts to see if they were reachable from the web server.
@@ -636,6 +648,18 @@ You have successfully executed getflag on a target account
 ```
 
 Success.
+
+#### Mitigations
+
+The weaknesses are:
+1. CWE-276 Incorrect Default Permissions: The executable has `setuid` when it's not needed.
+2. CWE-272 Least Privilege Violation: The shell used in Nebula does not lower the privileges.
+3. CWE-367 Time-of-check Time-of-use (TOCTOU) Race Condition: The `access()` verifies the permissions but the `open()` could open a different file than the one authorized by `access()`.
+
+To mitigate the attack vectors on this executable, we could:
+1. Remove the SETUID;
+2. Install a shell that does lower the privileges;
+3. The effective UID and GID should be set as the current user and group when the `open()` is performed.
 
 ### Level 13
 
